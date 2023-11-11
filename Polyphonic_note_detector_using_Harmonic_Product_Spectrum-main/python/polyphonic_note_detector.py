@@ -16,17 +16,21 @@ import math
 ## Configuration
 
 # Path
-path     = "../audio/"
+# Expected terminal to be in tabs-generator folder
+path     = "./Polyphonic_note_detector_using_Harmonic_Product_Spectrum-main/audio/"
+exp_path = "./Polyphonic_note_detector_using_Harmonic_Product_Spectrum-main/labeled/"
 
-# filename = '18474__pitx__c4.wav'
+filename = '18474__pitx__c4.wav'
 # filename = 'c_major_guitar.wav'
-filename = 'c_major_classical_guitar_E2_C3_E3_G3_C4_E4.wav'
+# filename = 'c_major_classical_guitar_E2_C3_E3_G3_C4_E4.wav'
 
-note_threshold = 5_000.0    # 120   # 50_000.0   #  3_000.0
+# note_threshold = 5_000.0    # 120   # 50_000.0   #  3_000.0
+note_threshold = 5000.0
 
 # Parameters
 sample_rate  = 44100                     # Sampling Frequency
-fft_len      = 22050   # 2048                      # Length of the FFT window
+# fft_len      = 22050                     # Length of the FFT window
+fft_len      = 2048                      # Length of the FFT window
 overlap      = 0.5                       # Hop overlap percentage between windows
 hop_length   = int(fft_len*(1-overlap))  # Number of samples between successive frames
 
@@ -51,12 +55,12 @@ def read_wav_file(path, filename):
     for i in range(0, len(signal_temp)):
         signal_array[i] = signal_temp[i] / (2.0**15)
 
-    print("file_name: " + str(filename))
-    print("sample_rate: " + str(sample_rate))
-    print("input_buffer.size: " + str(len(signal_array)))
-    print("seconds: " + to_str_f4(len(signal_array)/sample_rate) + " s")
-    print("type [-1, 1]: " + str(signal_array.dtype))
-    print("min: " + to_str_f4(np.min(signal_array)) + " max: " + to_str_f4(np.max(signal_array))  )
+    # print("file_name: " + str(filename))
+    # print("sample_rate: " + str(sample_rate))
+    # print("input_buffer.size: " + str(len(signal_array)))
+    # print("seconds: " + to_str_f4(len(signal_array)/sample_rate) + " s")
+    # print("type [-1, 1]: " + str(signal_array.dtype))
+    # print("min: " + to_str_f4(np.min(signal_array)) + " max: " + to_str_f4(np.max(signal_array))  )
 
     return sample_rate, signal_array
 
@@ -177,7 +181,6 @@ def PitchSpectralHps(X, freq_buckets, f_s, buffer_rms):
     # initialize
     iOrder = 4
     f_min = 65.41   # C2      300
-    # f = np.zeros(X.shape[1])
     f = np.zeros(len(X))
 
     iLen = int((X.shape[0] - 1) / iOrder)
@@ -267,7 +270,9 @@ def main():
     
     ## Uncomment to process a single chunk os a limited number os sequential chunks. 
     # for chunk in buffer_chunks[5: 6]:
-    for chunk in buffer_chunks[0: 60]:
+    note_names = []
+    times = []
+    for idx, chunk in enumerate(buffer_chunks):
         print("\n...Chunk: ", str(count))
                 
         fft_freq, fft_res, fft_res_len = getFFT(chunk, len(chunk))
@@ -277,13 +282,17 @@ def main():
         buffer_rms = np.sqrt(np.mean(chunk**2))
 
         all_freqs = PitchSpectralHps(fft_res, fft_freq, sample_rate_file, buffer_rms)
+        print("Number of frequencies: " + str(len(all_freqs)))
         # print("all_freqs ")
         # print(all_freqs)
 
+        time = float(fft_len) * idx / sample_rate_file
+
         for freq in all_freqs:
             note_name = find_nearest_note(ordered_note_freq, freq[0])
+            note_names.append(note_name)
+            times.append(time)
             print("=> freq: " + to_str_f(freq[0]) + " Hz  value: " + to_str_f(freq[1]) + " note_name: " + note_name )
-
 
         ## Uncomment to print the arrays.
         # print("\nfft_freq: ")
@@ -297,8 +306,8 @@ def main():
         # print(fft_res_len)
 
 
-        ## Uncomment to show the graph of the result of the FFT with the
-        ## correct frequencies in the legend. 
+        # Uncomment to show the graph of the result of the FFT with the
+        # correct frequencies in the legend. 
         # N = fft_res_len
         # fft_freq_interval = fft_freq[: N // 4]
         # fft_res_interval = fft_res[: N // 4]
@@ -307,6 +316,11 @@ def main():
         # plt.show()
 
         count += 1
+
+    export_arr = np.array([times, note_names]).T
+    np.savetxt(exp_path + filename.split(".")[0] + "-labeled.csv", export_arr, fmt="%s")
+    # print("export to csv:")
+    # print(export_arr)
 
 if __name__ == "__main__":
     main()
