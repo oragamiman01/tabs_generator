@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import wave
 import math
+from scipy.signal import find_peaks
 
 ## Configuration
 
@@ -20,17 +21,18 @@ import math
 path     = "./Polyphonic_note_detector_using_Harmonic_Product_Spectrum-main/audio/"
 exp_path = "./Polyphonic_note_detector_using_Harmonic_Product_Spectrum-main/labeled/"
 
-filename = '18474__pitx__c4.wav'
+filename = '18461__pitx__a4.wav'
+# filename = '18474__pitx__c4.wav'
 # filename = 'c_major_guitar.wav'
 # filename = 'c_major_classical_guitar_E2_C3_E3_G3_C4_E4.wav'
 
 # note_threshold = 5_000.0    # 120   # 50_000.0   #  3_000.0
-note_threshold = 5000.0
+THRESH = 100
 
 # Parameters
 sample_rate  = 44100                     # Sampling Frequency
 # fft_len      = 22050                     # Length of the FFT window
-fft_len      = 2048                      # Length of the FFT window
+fft_len      = 2048*4                      # Length of the FFT window
 overlap      = 0.5                       # Hop overlap percentage between windows
 hop_length   = int(fft_len*(1-overlap))  # Number of samples between successive frames
 
@@ -196,29 +198,41 @@ def PitchSpectralHps(X, freq_buckets, f_s, buffer_rms):
     # f = np.argmax(afHps[np.arange(k_min, afHps.shape[0])], axis=0)
     ## find max index and convert to Hz
     # freq_out = (f + k_min) / (X.shape[0] - 1) * f_s / 2
+    afHps = np.clip(afHps, 0, max(afHps) * 0.5)
 
     note_threshold = note_threshold_scaled_by_RMS(buffer_rms)
 
     all_freq = np.argwhere(afHps[np.arange(k_min, afHps.shape[0])] > note_threshold)
+    if max(afHps[np.arange(k_min, afHps.shape[0])] > buffer_rms * 2):
+        max_index_peaks, find_peaks_dict = find_peaks(afHps[np.arange(k_min, afHps.shape[0])], height=max(afHps[np.arange(k_min, afHps.shape[0])]) / 10, distance=5)
+    else:
+        max_index_peaks, find_peaks_dict = find_peaks(afHps[np.arange(k_min, afHps.shape[0])], height=1, distance=8)
     # find max index and convert to Hz
-    freqs_out = (all_freq + k_min) / (X.shape[0] - 1) * f_s / 2
+    freqs_out = (max_index_peaks + k_min) / (X.shape[0] - 1) * f_s / 2
+    # freqs_out = (all_freq + k_min) / (X.shape[0] - 1) * f_s / 2
 
     
     x = afHps[np.arange(k_min, afHps.shape[0])]
     freq_indexes_out = np.where( x > note_threshold)
-    freq_values_out = x[freq_indexes_out]
+    freq_values_out = x[max_index_peaks]
+    # freq_values_out = x[freq_indexes_out]
 
     # print("\n##### x: " + str(x))
     # print("\n##### freq_values_out: " + str(freq_values_out))
 
     max_value = np.max(afHps[np.arange(k_min, afHps.shape[0])])
     max_index = np.argmax(afHps[np.arange(k_min, afHps.shape[0])])
+
+    fig, ax = plt.subplots()
+    ax.plot(afHps[np.arange(k_min, afHps.shape[0])])
+    plt.show()
     
     ## Uncomment to print the values: buffer_RMS, max_value, min_value
     ## and note_threshold.    
-    print(" buffer_rms: " + to_str_f4(buffer_rms) )
-    print(" max_value : " + to_str_f(max_value) + "  max_index : " + to_str_f(max_index) )
-    print(" note_threshold : " + to_str_f(note_threshold) )
+    # print(" buffer_rms: " + to_str_f4(buffer_rms) )
+    # print(" max_value : " + to_str_f(max_value) + "  max_index : " + to_str_f(max_index) )
+    # print(" note_threshold : " + to_str_f(note_threshold) )
+    # print(" scipy peaks: " + str(max_index_peaks))
 
     ## Uncomment to show the graph of the result of the 
     ## Harmonic Product Spectrum. 
@@ -231,12 +245,12 @@ def PitchSpectralHps(X, freq_buckets, f_s, buffer_rms):
     # Turns 2 level list into a one level list.
     freqs_out_tmp = []
     for freq, value  in zip(freqs_out, freq_values_out):
-        freqs_out_tmp.append((freq[0], value))
+        freqs_out_tmp.append((freq, value))
     
     return freqs_out_tmp
 
 def note_threshold_scaled_by_RMS(buffer_rms):
-    note_threshold = 1000.0 * (4 / 0.090) * buffer_rms
+    note_threshold = THRESH * (4 / 0.090) * buffer_rms
     return note_threshold
 
 def normalize(arr):
@@ -273,7 +287,7 @@ def main():
     note_names = []
     times = []
     for idx, chunk in enumerate(buffer_chunks):
-        print("\n...Chunk: ", str(count))
+        # print("\n...Chunk: ", str(count))
                 
         fft_freq, fft_res, fft_res_len = getFFT(chunk, len(chunk))
         fft_res = remove_dc_offset(fft_res)
@@ -282,7 +296,7 @@ def main():
         buffer_rms = np.sqrt(np.mean(chunk**2))
 
         all_freqs = PitchSpectralHps(fft_res, fft_freq, sample_rate_file, buffer_rms)
-        print("Number of frequencies: " + str(len(all_freqs)))
+        # print("Number of frequencies: " + str(len(all_freqs)))
         # print("all_freqs ")
         # print(all_freqs)
 
@@ -292,7 +306,7 @@ def main():
             note_name = find_nearest_note(ordered_note_freq, freq[0])
             note_names.append(note_name)
             times.append(time)
-            print("=> freq: " + to_str_f(freq[0]) + " Hz  value: " + to_str_f(freq[1]) + " note_name: " + note_name )
+            # print("=> freq: " + to_str_f(freq[0]) + " Hz  value: " + to_str_f(freq[1]) + " note_name: " + note_name )
 
         ## Uncomment to print the arrays.
         # print("\nfft_freq: ")
