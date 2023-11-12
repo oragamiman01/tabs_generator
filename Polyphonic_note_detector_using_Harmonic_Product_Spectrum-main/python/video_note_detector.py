@@ -324,7 +324,7 @@ def main():
 
         for freq in all_freqs:
             note_name = find_nearest_note(ordered_note_freq, freq[0])
-            note_names.append(note_name)
+            note_names[idx].append(note_name) # TODO might need to modify this
             notes_per_chunk[idx] = note_name
             times.append(time)
             # print("=> freq: " + to_str_f(freq[0]) + " Hz  value: " + to_str_f(freq[1]) + " note_name: " + note_name )
@@ -358,7 +358,7 @@ def main():
     frames_per_chunk = len(frame_filenames) / count
 
     for idx, fn in enumerate(frame_filenames):
-
+        # TODO fix indexing
         export_arr[idx,:] = [fn, note_names[int(idx / frames_per_chunk)]]
     np.savetxt(exp_path + filename.split(".")[0] + "-labeled.csv", export_arr, fmt="%s")
 
