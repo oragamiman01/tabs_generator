@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import wave
 import math
 from scipy.signal import find_peaks
-import moviepy
+from moviepy.editor import *
 import sys
 
 ## Configuration
@@ -23,7 +23,8 @@ import sys
 path     = "../data/"
 exp_path = "./Polyphonic_note_detector_using_Harmonic_Product_Spectrum-main/labeled/"
 
-filename = '18461__pitx__a4.wav'
+# filename = '18461__pitx__a4.wav'
+filename = filename = "dumb_scale_youtube.mp4"
 # filename = '18474__pitx__c4.wav'
 # filename = 'c_major_guitar.wav'
 # filename = 'c_major_classical_guitar_E2_C3_E3_G3_C4_E4.wav'
@@ -67,6 +68,20 @@ def read_wav_file(path, filename):
     # print("min: " + to_str_f4(np.min(signal_array)) + " max: " + to_str_f4(np.max(signal_array))  )
 
     return sample_rate, signal_array
+
+def read_video_file(path, filename):
+    video = VideoFileClip(path + filename)
+    fps = video.fps
+    frame_filenames = video.write_images_sequence(path + "frame%04d.jpeg")
+    audio = video.audio
+    sample_rate = audio.fps
+    signal_temp = np.array([n[0] for n in audio.iter_frames()])
+    signal_array = np.zeros(len(signal_temp), float)
+    for i in range(0, len(signal_temp)):
+        signal_array[i] = signal_temp[i] / (2.0**15)
+        
+    return sample_rate, signal_array, frame_filenames
+
 
 def divide_buffer_into_non_overlapping_chunks(buffer, max_len):
     buffer_len = len(buffer)
@@ -225,9 +240,9 @@ def PitchSpectralHps(X, freq_buckets, f_s, buffer_rms):
     max_value = np.max(afHps[np.arange(k_min, afHps.shape[0])])
     max_index = np.argmax(afHps[np.arange(k_min, afHps.shape[0])])
 
-    fig, ax = plt.subplots()
-    ax.plot(afHps[np.arange(k_min, afHps.shape[0])])
-    plt.show()
+    # fig, ax = plt.subplots()
+    # ax.plot(afHps[np.arange(k_min, afHps.shape[0])])
+    # plt.show()
     
     ## Uncomment to print the values: buffer_RMS, max_value, min_value
     ## and note_threshold.    
@@ -278,7 +293,8 @@ def main():
     ordered_note_freq = get_all_notes_freq()
     # print(ordered_note_freq)
 
-    sample_rate_file, input_buffer = read_wav_file(path, filename)
+    # sample_rate_file, input_buffer = read_wav_file(path, filename)
+    sample_rate_file, input_buffer, frame_filenames = read_video_file(path, filename)
     buffer_chunks = divide_buffer_into_non_overlapping_chunks(input_buffer, fft_len)
     # The buffer chunk at n seconds:
 
@@ -286,6 +302,8 @@ def main():
     
     ## Uncomment to process a single chunk os a limited number os sequential chunks. 
     # for chunk in buffer_chunks[5: 6]:
+    num_chunks = len(buffer_chunks)
+    notes_per_chunk = [[]] * num_chunks
     note_names = []
     times = []
     for idx, chunk in enumerate(buffer_chunks):
@@ -307,6 +325,7 @@ def main():
         for freq in all_freqs:
             note_name = find_nearest_note(ordered_note_freq, freq[0])
             note_names.append(note_name)
+            notes_per_chunk[idx] = note_name
             times.append(time)
             # print("=> freq: " + to_str_f(freq[0]) + " Hz  value: " + to_str_f(freq[1]) + " note_name: " + note_name )
 
@@ -333,8 +352,17 @@ def main():
 
         count += 1
 
-    export_arr = np.array([times, note_names]).T
+    time_notes = np.array([times, note_names]).T
+    frames_arr = np.array(frame_filenames).reshape((len(frame_filenames), 1))
+    export_arr = np.zeros_like((len(frame_filenames), 2), dtype=str)
+    frames_per_chunk = len(frame_filenames) / count
+
+    for idx, fn in enumerate(frame_filenames):
+
+        export_arr[idx,:] = [fn, note_names[int(idx / frames_per_chunk)]]
     np.savetxt(exp_path + filename.split(".")[0] + "-labeled.csv", export_arr, fmt="%s")
+
+
     # print("export to csv:")
     # print(export_arr)
 
