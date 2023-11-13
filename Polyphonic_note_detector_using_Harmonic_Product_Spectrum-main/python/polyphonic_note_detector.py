@@ -54,7 +54,7 @@ def read_wav_file(path, filename):
     # We can convert our sound array to floating point values ranging from -1 to 1 as follows.
     signal_temp = np.frombuffer(wav_frames, np.int16)
     signal_array = np.zeros( len(signal_temp), float)
-    print(signal_temp[500:600])
+    # print(signal_temp[500:600])
 
     for i in range(0, len(signal_temp)):
         signal_array[i] = signal_temp[i] / (2.0**15)
