@@ -21,7 +21,8 @@ from scipy.signal import find_peaks
 path     = "./Polyphonic_note_detector_using_Harmonic_Product_Spectrum-main/audio/"
 exp_path = "./Polyphonic_note_detector_using_Harmonic_Product_Spectrum-main/labeled/"
 
-filename = '18461__pitx__a4.wav'
+# filename = '18461__pitx__a4.wav'
+filename = 'dumb_scale_youtube.wav'
 # filename = '18474__pitx__c4.wav'
 # filename = 'c_major_guitar.wav'
 # filename = 'c_major_classical_guitar_E2_C3_E3_G3_C4_E4.wav'
@@ -53,6 +54,7 @@ def read_wav_file(path, filename):
     # We can convert our sound array to floating point values ranging from -1 to 1 as follows.
     signal_temp = np.frombuffer(wav_frames, np.int16)
     signal_array = np.zeros( len(signal_temp), float)
+    print(signal_temp[500:600])
 
     for i in range(0, len(signal_temp)):
         signal_array[i] = signal_temp[i] / (2.0**15)
@@ -223,9 +225,9 @@ def PitchSpectralHps(X, freq_buckets, f_s, buffer_rms):
     max_value = np.max(afHps[np.arange(k_min, afHps.shape[0])])
     max_index = np.argmax(afHps[np.arange(k_min, afHps.shape[0])])
 
-    fig, ax = plt.subplots()
-    ax.plot(afHps[np.arange(k_min, afHps.shape[0])])
-    plt.show()
+    # fig, ax = plt.subplots()
+    # ax.plot(afHps[np.arange(k_min, afHps.shape[0])])
+    # plt.show()
     
     ## Uncomment to print the values: buffer_RMS, max_value, min_value
     ## and note_threshold.    
@@ -236,11 +238,11 @@ def PitchSpectralHps(X, freq_buckets, f_s, buffer_rms):
 
     ## Uncomment to show the graph of the result of the 
     ## Harmonic Product Spectrum. 
-    # fig, ax = plt.subplots()
-    # yr_tmp = afHps[np.arange(k_min, afHps.shape[0])]
-    # xr_tmp = (np.arange(k_min, afHps.shape[0]) + k_min) / (X.shape[0] - 1) * f_s / 2
-    # ax.plot(xr_tmp, yr_tmp)
-    # plt.show()
+    fig, ax = plt.subplots()
+    yr_tmp = afHps[np.arange(k_min, afHps.shape[0])]
+    xr_tmp = (np.arange(k_min, afHps.shape[0]) + k_min) / (X.shape[0] - 1) * f_s / 2
+    ax.plot(xr_tmp, yr_tmp)
+    plt.show()
 
     # Turns 2 level list into a one level list.
     freqs_out_tmp = []
