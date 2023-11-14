@@ -13,16 +13,19 @@ import matplotlib.pyplot as plt
 import wave
 import math
 from scipy.signal import find_peaks
+from moviepy.editor import *
+import sys
 
 ## Configuration
 
 # Path
 # Expected terminal to be in tabs-generator folder
-path     = "./Polyphonic_note_detector_using_Harmonic_Product_Spectrum-main/audio/"
-exp_path = "./Polyphonic_note_detector_using_Harmonic_Product_Spectrum-main/labeled/"
+# path     = "../data/"
+path = "../audio/"
+exp_path = "./note_detector/labeled/"
 
-# filename = '18461__pitx__a4.wav'
-filename = 'dumb_scale_youtube.wav'
+filename = '18461__pitx__a4.wav'
+# filename = filename = "dumb_scale_youtube.mp4"
 # filename = '18474__pitx__c4.wav'
 # filename = 'c_major_guitar.wav'
 # filename = 'c_major_classical_guitar_E2_C3_E3_G3_C4_E4.wav'
@@ -54,7 +57,6 @@ def read_wav_file(path, filename):
     # We can convert our sound array to floating point values ranging from -1 to 1 as follows.
     signal_temp = np.frombuffer(wav_frames, np.int16)
     signal_array = np.zeros( len(signal_temp), float)
-    # print(signal_temp[500:600])
 
     for i in range(0, len(signal_temp)):
         signal_array[i] = signal_temp[i] / (2.0**15)
@@ -68,10 +70,29 @@ def read_wav_file(path, filename):
 
     return sample_rate, signal_array
 
+def read_video_file(path, filename):
+    video = VideoFileClip(path + filename).fx(afx.audio_normalize)
+    fps = video.fps
+    # frame_filenames = video.write_images_sequence(path + "frame%04d.jpeg") # not needed anymore
+    num_frames = round(fps * video.duration)
+    aud = video.audio
+    # aud.write_audiofile("./note_detector/audio/dumb_scale_youtube.wav")
+    sample_rate = aud.fps
+    signal_temp = np.array([n[0] for n in aud.iter_frames()])
+    # print(signal_temp[500:600])
+    video.close()
+    # signal_array = np.zeros(len(signal_temp), float)
+    
+    # for i in range(0, len(signal_temp)):
+    #     signal_array[i] = signal_temp[i] / (2.0**15)
+        
+    return sample_rate, signal_temp, num_frames
+
+
 def divide_buffer_into_non_overlapping_chunks(buffer, max_len):
     buffer_len = len(buffer)
     chunks = int(buffer_len / max_len)
-    print("buffers_num: " + str(chunks))
+    #print("buffers_num: " + str(chunks))
     division_pts_list = []
     for i in range(1, chunks):
         division_pts_list.append(i * max_len)    
@@ -176,7 +197,7 @@ def PitchSpectralHps(X, freq_buckets, f_s, buffer_rms):
 
     Args:
         X: spectrogram (dimension FFTLength X Observations)
-        f_s: sample rate of audio data
+        f_s: sample rate of aud data
 
     Returns:
         f HPS maximum location (in Hz)
@@ -206,7 +227,7 @@ def PitchSpectralHps(X, freq_buckets, f_s, buffer_rms):
 
     all_freq = np.argwhere(afHps[np.arange(k_min, afHps.shape[0])] > note_threshold)
     if max(afHps[np.arange(k_min, afHps.shape[0])] > buffer_rms * 2):
-        max_index_peaks, find_peaks_dict = find_peaks(afHps[np.arange(k_min, afHps.shape[0])], height=max(afHps[np.arange(k_min, afHps.shape[0])]) / 10, distance=5)
+        max_index_peaks, find_peaks_dict = find_peaks(afHps[np.arange(k_min, afHps.shape[0])], height=max(afHps[np.arange(k_min, afHps.shape[0])]) / 5, distance=5)
     else:
         max_index_peaks, find_peaks_dict = find_peaks(afHps[np.arange(k_min, afHps.shape[0])], height=1, distance=8)
     # find max index and convert to Hz
@@ -238,11 +259,11 @@ def PitchSpectralHps(X, freq_buckets, f_s, buffer_rms):
 
     ## Uncomment to show the graph of the result of the 
     ## Harmonic Product Spectrum. 
-    fig, ax = plt.subplots()
-    yr_tmp = afHps[np.arange(k_min, afHps.shape[0])]
-    xr_tmp = (np.arange(k_min, afHps.shape[0]) + k_min) / (X.shape[0] - 1) * f_s / 2
-    ax.plot(xr_tmp, yr_tmp)
-    plt.show()
+    # fig, ax = plt.subplots()
+    # yr_tmp = afHps[np.arange(k_min, afHps.shape[0])]
+    # xr_tmp = (np.arange(k_min, afHps.shape[0]) + k_min) / (X.shape[0] - 1) * f_s / 2
+    # ax.plot(xr_tmp, yr_tmp)
+    # plt.show()
 
     # Turns 2 level list into a one level list.
     freqs_out_tmp = []
@@ -278,7 +299,8 @@ def main():
     ordered_note_freq = get_all_notes_freq()
     # print(ordered_note_freq)
 
-    sample_rate_file, input_buffer = read_wav_file(path, filename)
+    # sample_rate_file, input_buffer = read_wav_file(path, filename)
+    sample_rate_file, input_buffer, num_frames = read_video_file(path, filename)
     buffer_chunks = divide_buffer_into_non_overlapping_chunks(input_buffer, fft_len)
     # The buffer chunk at n seconds:
 
@@ -286,8 +308,9 @@ def main():
     
     ## Uncomment to process a single chunk os a limited number os sequential chunks. 
     # for chunk in buffer_chunks[5: 6]:
-    note_names = []
-    times = []
+    num_chunks = len(buffer_chunks)
+    notes = [[] for i in range(num_chunks)]
+
     for idx, chunk in enumerate(buffer_chunks):
         # print("\n...Chunk: ", str(count))
                 
@@ -306,9 +329,8 @@ def main():
 
         for freq in all_freqs:
             note_name = find_nearest_note(ordered_note_freq, freq[0])
-            note_names.append(note_name)
-            times.append(time)
-            # print("=> freq: " + to_str_f(freq[0]) + " Hz  value: " + to_str_f(freq[1]) + " note_name: " + note_name )
+            notes[idx].append(note_name)
+            #print("=> freq: " + to_str_f(freq[0]) + " Hz  value: " + to_str_f(freq[1]) + " note_name: " + note_name )
 
         ## Uncomment to print the arrays.
         # print("\nfft_freq: ")
@@ -333,10 +355,106 @@ def main():
 
         count += 1
 
-    export_arr = np.array([times, note_names]).T
+    export_list = [[],[]]
+    export_arr = np.zeros_like((num_frames, 2), dtype=str)
+    frames_per_chunk = num_frames / num_chunks
+
+    for idx in range(num_frames):
+        chunk_idx = int(idx / frames_per_chunk)
+        for note in notes[chunk_idx]:
+            export_list[0].append(idx)
+            export_list[1].append(note)
+
+    export_arr = np.asarray(export_list).T
+    print("num_frames: " + str(num_frames))
+    print(export_arr.shape)
     np.savetxt(exp_path + filename.split(".")[0] + "-labeled.csv", export_arr, fmt="%s")
+
+
     # print("export to csv:")
     # print(export_arr)
+
+
+def generate_labels(video_file_path_NEW, video_file_name_NEW, export_path_NEW="./generated/"):
+    #print("\nPolyphonic note detector\n")
+
+    ordered_note_freq = get_all_notes_freq()
+    # print(ordered_note_freq)
+
+    # sample_rate_file, input_buffer = read_wav_file(path, filename)
+    sample_rate_file, input_buffer, num_frames = read_video_file(video_file_path_NEW, video_file_name_NEW)
+    buffer_chunks = divide_buffer_into_non_overlapping_chunks(input_buffer, fft_len)
+    # The buffer chunk at n seconds:
+
+    count = 0
+
+    ## Uncomment to process a single chunk os a limited number os sequential chunks.
+    # for chunk in buffer_chunks[5: 6]:
+    num_chunks = len(buffer_chunks)
+    notes = [[] for i in range(num_chunks)]
+
+    for idx, chunk in enumerate(buffer_chunks):
+        # print("\n...Chunk: ", str(count))
+
+        fft_freq, fft_res, fft_res_len = getFFT(chunk, len(chunk))
+        fft_res = remove_dc_offset(fft_res)
+
+        # Calculate Root Mean Square of the signal buffer, as a scale factor to the threshold.
+        buffer_rms = np.sqrt(np.mean(chunk ** 2))
+
+        all_freqs = PitchSpectralHps(fft_res, fft_freq, sample_rate_file, buffer_rms)
+        # print("Number of frequencies: " + str(len(all_freqs)))
+        # print("all_freqs ")
+        # print(all_freqs)
+
+        time = float(fft_len) * idx / sample_rate_file
+
+        for freq in all_freqs:
+            note_name = find_nearest_note(ordered_note_freq, freq[0])
+            notes[idx].append(note_name)
+            #print("=> freq: " + to_str_f(freq[0]) + " Hz  value: " + to_str_f(freq[1]) + " note_name: " + note_name)
+
+        ## Uncomment to print the arrays.
+        # print("\nfft_freq: ")
+        # print(fft_freq)
+        # print("\nfft_freq_len: " + str(len(fft_freq)))
+
+        # print("\nfft_res: ")
+        # print(fft_res)
+
+        # print("\nfft_res_len: ")
+        # print(fft_res_len)
+
+        # Uncomment to show the graph of the result of the FFT with the
+        # correct frequencies in the legend.
+        # N = fft_res_len
+        # fft_freq_interval = fft_freq[: N // 4]
+        # fft_res_interval = fft_res[: N // 4]
+        # fig, ax = plt.subplots()
+        # ax.plot(fft_freq_interval, 2.0/N * np.abs(fft_res_interval))
+        # plt.show()
+
+        count += 1
+
+    export_list = [[], []]
+    export_arr = np.zeros_like((num_frames, 2), dtype=str)
+    frames_per_chunk = num_frames / num_chunks
+
+    for idx in range(num_frames):
+        chunk_idx = int(idx / frames_per_chunk)
+        for note in notes[chunk_idx]:
+            export_list[0].append(idx)
+            export_list[1].append(note)
+
+    export_arr = np.asarray(export_list).T
+    return export_arr, num_frames
+    # print("num_frames: " + str(num_frames))
+    # print(export_arr.shape)
+    # np.savetxt(export_path_NEW + filename.split(".")[0] + "-labeled.csv", export_arr, fmt="%s")
+
+    # print("export to csv:")
+    # print(export_arr)
+
 
 if __name__ == "__main__":
     main()
